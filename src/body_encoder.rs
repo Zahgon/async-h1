@@ -16,12 +16,7 @@ pub(crate) enum BodyEncoder {
 }
 
 impl BodyEncoder {
-    pub(crate) fn new(body: Body) -> Self {
-        match body.len() {
-            Some(_) => Self::Fixed(body),
-            None => Self::Chunked(ChunkedEncoder::new(body)),
-        }
-    }
+    pub(crate) fn new(body: Body) -> Self { panic!("STUB: not implemented") }
 }
 
 impl Read for BodyEncoder {
@@ -29,10 +24,5 @@ impl Read for BodyEncoder {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        match self.project() {
-            BodyEncoderProjection::Chunked(encoder) => encoder.poll_read(cx, buf),
-            BodyEncoderProjection::Fixed(body) => body.poll_read(cx, buf),
-        }
-    }
+    ) -> Poll<io::Result<usize>> { panic!("STUB: not implemented") }
 }

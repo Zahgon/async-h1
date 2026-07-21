@@ -7,117 +7,63 @@ use futures_lite::io::{self, AsyncRead as Read};
 use futures_lite::ready;
 use http_types::trailers::{Sender, Trailers};
 
-/// Decodes a chunked body according to
-/// https://tools.ietf.org/html/rfc7230#section-4.1
 #[derive(Debug)]
 pub struct ChunkedDecoder<R: Read> {
-    /// The underlying stream
+    
     inner: R,
-    /// Current state.
+    
     state: State,
-    /// Current chunk size (increased while parsing size, decreased while reading chunk)
+    
     chunk_size: u64,
-    /// Trailer channel sender.
+    
     trailer_sender: Option<Sender>,
 }
 
 impl<R: Read> ChunkedDecoder<R> {
-    pub(crate) fn new(inner: R, trailer_sender: Sender) -> Self {
-        ChunkedDecoder {
-            inner,
-            state: State::ChunkSize,
-            chunk_size: 0,
-            trailer_sender: Some(trailer_sender),
-        }
-    }
+    pub(crate) fn new(inner: R, trailer_sender: Sender) -> Self { panic!("STUB: not implemented") }
 }
 
-/// Decoder state.
 enum State {
-    /// Parsing bytes from a chunk size
+    
     ChunkSize,
-    /// Expecting the \n at the end of a chunk size
+    
     ChunkSizeExpectLf,
-    /// Parsing the chunk body
+    
     ChunkBody,
-    /// Expecting the \r at the end of a chunk body
+    
     ChunkBodyExpectCr,
-    /// Expecting the \n at the end of a chunk body
+    
     ChunkBodyExpectLf,
-    /// Parsing trailers.
+    
     Trailers(usize, Box<[u8; 8192]>),
-    /// Sending trailers over the channel.
+    
     TrailerSending(Pin<Box<dyn Future<Output = ()> + 'static + Send + Sync>>),
-    /// All is said and done.
+    
     Done,
 }
 
 impl fmt::Debug for State {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            State::ChunkSize => write!(f, "State::ChunkSize"),
-            State::ChunkSizeExpectLf => write!(f, "State::ChunkSizeExpectLf"),
-            State::ChunkBody => write!(f, "State::ChunkBody"),
-            State::ChunkBodyExpectCr => write!(f, "State::ChunkBodyExpectCr"),
-            State::ChunkBodyExpectLf => write!(f, "State::ChunkBodyExpectLf"),
-            State::Trailers(len, _) => write!(f, "State::Trailers({}, _)", len),
-            State::TrailerSending(_) => write!(f, "State::TrailerSending"),
-            State::Done => write!(f, "State::Done"),
-        }
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { panic!("STUB: not implemented") }
 }
 
 impl<R: Read + Unpin> ChunkedDecoder<R> {
-    fn poll_read_byte(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<u8>> {
-        let mut byte = [0u8];
-        if ready!(Pin::new(&mut self.inner).poll_read(cx, &mut byte))? == 1 {
-            Poll::Ready(Ok(byte[0]))
-        } else {
-            eof()
-        }
-    }
+    fn poll_read_byte(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<u8>> { panic!("STUB: not implemented") }
 
     fn expect_byte(
         &mut self,
         cx: &mut Context<'_>,
         expected_byte: u8,
         expected: &'static str,
-    ) -> Poll<io::Result<()>> {
-        let byte = ready!(self.poll_read_byte(cx))?;
-        if byte == expected_byte {
-            Poll::Ready(Ok(()))
-        } else {
-            unexpected(byte, expected)
-        }
-    }
+    ) -> Poll<io::Result<()>> { panic!("STUB: not implemented") }
 
-    fn send_trailers(&mut self, trailers: Trailers) {
-        let sender = self
-            .trailer_sender
-            .take()
-            .expect("invalid chunked state, tried sending multiple trailers");
-        let fut = Box::pin(sender.send(trailers));
-        self.state = State::TrailerSending(fut);
-    }
+    fn send_trailers(&mut self, trailers: Trailers) { panic!("STUB: not implemented") }
 }
 
-fn eof<T>() -> Poll<io::Result<T>> {
-    Poll::Ready(Err(io::Error::new(
-        io::ErrorKind::UnexpectedEof,
-        "Unexpected EOF when decoding chunked data",
-    )))
-}
+fn eof<T>() -> Poll<io::Result<T>> { panic!("STUB: not implemented") }
 
-fn unexpected<T>(byte: u8, expected: &'static str) -> Poll<io::Result<T>> {
-    Poll::Ready(Err(io::Error::new(
-        io::ErrorKind::InvalidData,
-        format!("Unexpected byte {}; expected {}", byte, expected),
-    )))
-}
+fn unexpected<T>(byte: u8, expected: &'static str) -> Poll<io::Result<T>> { panic!("STUB: not implemented") }
 
-fn overflow() -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, "Chunk size overflowed 64 bits")
-}
+fn overflow() -> io::Error { panic!("STUB: not implemented") }
 
 impl<R: Read + Unpin> Read for ChunkedDecoder<R> {
     #[allow(missing_doc_code_examples)]
@@ -125,110 +71,7 @@ impl<R: Read + Unpin> Read for ChunkedDecoder<R> {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        let this = &mut *self;
-
-        loop {
-            match this.state {
-                State::ChunkSize => {
-                    let byte = ready!(this.poll_read_byte(cx))?;
-                    let digit = match byte {
-                        b'0'..=b'9' => byte - b'0',
-                        b'a'..=b'f' => 10 + byte - b'a',
-                        b'A'..=b'F' => 10 + byte - b'A',
-                        b'\r' => {
-                            this.state = State::ChunkSizeExpectLf;
-                            continue;
-                        }
-                        _ => {
-                            return unexpected(byte, "hex digit or CR");
-                        }
-                    };
-                    this.chunk_size = this
-                        .chunk_size
-                        .checked_mul(16)
-                        .ok_or_else(overflow)?
-                        .checked_add(digit as u64)
-                        .ok_or_else(overflow)?;
-                }
-                State::ChunkSizeExpectLf => {
-                    ready!(this.expect_byte(cx, b'\n', "LF"))?;
-                    if this.chunk_size == 0 {
-                        this.state = State::Trailers(0, Box::new([0u8; 8192]));
-                    } else {
-                        this.state = State::ChunkBody;
-                    }
-                }
-                State::ChunkBody => {
-                    let max_bytes = std::cmp::min(
-                        buf.len(),
-                        std::cmp::min(this.chunk_size, usize::MAX as u64) as usize,
-                    );
-                    let bytes_read =
-                        ready!(Pin::new(&mut this.inner).poll_read(cx, &mut buf[..max_bytes]))?;
-                    this.chunk_size -= bytes_read as u64;
-                    if bytes_read == 0 {
-                        return eof();
-                    } else if this.chunk_size == 0 {
-                        this.state = State::ChunkBodyExpectCr;
-                    }
-                    return Poll::Ready(Ok(bytes_read));
-                }
-                State::ChunkBodyExpectCr => {
-                    ready!(this.expect_byte(cx, b'\r', "CR"))?;
-                    this.state = State::ChunkBodyExpectLf;
-                }
-                State::ChunkBodyExpectLf => {
-                    ready!(this.expect_byte(cx, b'\n', "LF"))?;
-                    this.state = State::ChunkSize;
-                }
-                State::Trailers(ref mut len, ref mut buf) => {
-                    let bytes_read =
-                        ready!(Pin::new(&mut this.inner).poll_read(cx, &mut buf[*len..]))?;
-                    *len += bytes_read;
-                    let len = *len;
-                    if len == 0 {
-                        this.send_trailers(Trailers::new());
-                        continue;
-                    }
-                    if bytes_read == 0 {
-                        return eof();
-                    }
-                    let mut headers = [httparse::EMPTY_HEADER; 16];
-                    let parse_result = httparse::parse_headers(&buf[..len], &mut headers)
-                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                    use httparse::Status;
-                    match parse_result {
-                        Status::Partial => {
-                            if len == buf.len() {
-                                return eof();
-                            } else {
-                                return Poll::Pending;
-                            }
-                        }
-                        Status::Complete((offset, headers)) => {
-                            if offset != len {
-                                return unexpected(buf[offset], "end of trailers");
-                            }
-                            let mut trailers = Trailers::new();
-                            for header in headers {
-                                trailers.insert(
-                                    header.name,
-                                    String::from_utf8_lossy(header.value).as_ref(),
-                                );
-                            }
-                            this.send_trailers(trailers);
-                        }
-                    }
-                }
-                State::TrailerSending(ref mut fut) => {
-                    ready!(Pin::new(fut).poll(cx));
-                    this.state = State::Done;
-                }
-                State::Done => return Poll::Ready(Ok(0)),
-            }
-        }
-    }
+    ) -> Poll<io::Result<usize>> { panic!("STUB: not implemented") }
 }
 
 #[cfg(test)]

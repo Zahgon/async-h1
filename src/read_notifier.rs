@@ -5,11 +5,6 @@ use std::task::{Context, Poll};
 use async_channel::Sender;
 use futures_lite::io::{self, AsyncBufRead as BufRead, AsyncRead as Read};
 
-/// ReadNotifier forwards [`async_std::io::Read`] and
-/// [`async_std::io::BufRead`] to an inner reader. When the
-/// ReadNotifier is read from (using `Read`, `ReadExt`, or `BufRead`
-/// methods), it sends a single message containing `()` on the
-/// channel.
 #[pin_project::pin_project]
 pub(crate) struct ReadNotifier<B> {
     #[pin]
@@ -19,31 +14,17 @@ pub(crate) struct ReadNotifier<B> {
 }
 
 impl<B> fmt::Debug for ReadNotifier<B> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ReadNotifier")
-            .field("read", &self.has_been_read)
-            .finish()
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { panic!("STUB: not implemented") }
 }
 
 impl<B: Read> ReadNotifier<B> {
-    pub(crate) fn new(reader: B, sender: Sender<()>) -> Self {
-        Self {
-            reader,
-            sender,
-            has_been_read: false,
-        }
-    }
+    pub(crate) fn new(reader: B, sender: Sender<()>) -> Self { panic!("STUB: not implemented") }
 }
 
 impl<B: BufRead> BufRead for ReadNotifier<B> {
-    fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
-        self.project().reader.poll_fill_buf(cx)
-    }
+    fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> { panic!("STUB: not implemented") }
 
-    fn consume(self: Pin<&mut Self>, amt: usize) {
-        self.project().reader.consume(amt)
-    }
+    fn consume(self: Pin<&mut Self>, amt: usize) { panic!("STUB: not implemented") }
 }
 
 impl<B: Read> Read for ReadNotifier<B> {
@@ -51,15 +32,5 @@ impl<B: Read> Read for ReadNotifier<B> {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        let this = self.project();
-
-        if !*this.has_been_read {
-            if let Ok(()) = this.sender.try_send(()) {
-                *this.has_been_read = true;
-            };
-        }
-
-        this.reader.poll_read(cx, buf)
-    }
+    ) -> Poll<io::Result<usize>> { panic!("STUB: not implemented") }
 }
